@@ -110,7 +110,7 @@ class Wrapper():
         tgrey = transforms.ToPILImage(mode='L')
         trgb = transforms.ToPILImage(mode='RGB')
 
-        i = 1  # output first of each batch
+        i = 0  # output first of each batch
         dl = tgrey(outputL[i].data.cpu())
         dr = tgrey(outputR[i].data.cpu())
         # dlt = tgrey(dispL[i].unsqueeze(0) / self.im_scale * 2)
