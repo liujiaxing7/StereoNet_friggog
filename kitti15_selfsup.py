@@ -11,6 +11,8 @@ import torch.nn.functional as F
 import numpy as np
 import time
 from torch.optim import RMSprop
+
+from file import MkdirSimple
 from models import *
 from utils.bilinear_sampler import apply_disparity
 import pytorch_ssim
@@ -65,7 +67,7 @@ class Wrapper():
 
         self.optimizer.zero_grad()
 
-        dispEstL, dispEstR = self.model(imgL, imgR)
+        dispPreL, dispPreR, dispEstL, dispEstR = self.model(imgL, imgR)
         loss = 0
         # calculate loss images
         imgEstL = apply_disparity(imgR, -dispEstL * self.im_scale)
@@ -102,7 +104,7 @@ class Wrapper():
         imgR = Variable(torch.FloatTensor(imgR))
         imgL, imgR = imgL.cuda(), imgR.cuda()
         with torch.no_grad():
-            outputL, outputR = self.model(imgL, imgR)
+            outputL, outputR, _, _ = self.model(imgL, imgR)
         estL = apply_disparity(imgR, -outputL.cuda() * self.im_scale)
         estR = apply_disparity(imgL, outputR.cuda() * self.im_scale)
         tgrey = transforms.ToPILImage(mode='L')
@@ -179,7 +181,18 @@ class Wrapper():
 
     #     return (three_pixel_error_rate_L + three_pixel_error_rate_R) / 2
 
-    def main(self, batch_size, epochs, checkpoint_name, start_at, test_only):
+    def save_model(self,epoch, total_train_loss, max_acc, max_epo, file):
+        MkdirSimple(file)
+        torch.save({
+            'state_dict': self.model.state_dict(),
+            'total_train_loss': total_train_loss,
+            'epoch': epoch + 1,
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'max_acc': max_acc,
+            'max_epoch': max_epo
+        }, file)
+
+    def main(self, batch_size, epochs, checkpoint_name, start_at, test_only, data_path, load_model_path, save_model_path):
         root_path = "D:/StereoNet"
 
         torch.manual_seed(0)
@@ -188,7 +201,7 @@ class Wrapper():
         self.im_scale = 1232 * 0.2
 
         all_left_img, all_right_img, all_left_disp, all_right_disp, test_left_img, test_right_img, test_left_disp, test_right_disp = FileListLoaders.KittiList(
-            './datasets/kitti15/')
+            data_path)
 
         TrainImgLoader = torch.utils.data.DataLoader(
             ImageLoaders.KittiImageLoader(all_left_img, all_right_img,
@@ -217,7 +230,7 @@ class Wrapper():
         epoch_start = 0
         max_acc = 0
         max_epo = 0
-        checkpoint_path = root_path + "/checkpoints/" + checkpoint_name
+        checkpoint_path = load_model_path
         if os.path.exists(checkpoint_path):
             state_dict = torch.load(checkpoint_path)
             self.model.load_state_dict(state_dict['state_dict'])
@@ -252,17 +265,25 @@ class Wrapper():
                 for batch_idx, (imgL_crop, imgR_crop, _, _) in enumerate(TrainImgLoader):
                     loss = self.train(imgL_crop, imgR_crop)
                     total_train_loss += loss
-                    if batch_idx % 50 == 0:
-                        print('=> Step %i loss %f' % (batch_idx, loss))
+                    # if batch_idx % 50 == 0:
+                    #     print('=> Step %i loss %f' % (batch_idx, loss))
 
-                print('Epoch %d average training loss = %.3f' %
-                      (epoch, total_train_loss /len(TrainImgLoader)))
+                total_test_loss = 0
+                for batch_idx, (imgL, imgR, dispL, dispR) in enumerate(TestImgLoader):
+                    loss = self.test(imgL, imgR, dispL, dispR)
+                    print('Iter %d EPE = %.3f' % (batch_idx, loss))
+                    total_test_loss += loss
 
                 ## Test ##
                 # for batch_idx, (imgL, imgR, dispL, dispR) in enumerate(TestImgLoader):
                 #     test_three_pixel_error_rate = self.test(imgL, imgR, dispL, dispR)
                 #     total_test_three_pixel_error_rate += test_three_pixel_error_rate
+                message = 'epoch %d: ' % epoch
+                message += " lr = %f" % self.scheduler.get_lr()[0]
 
+                message += ', average training loss = %.3f' % (total_train_loss / len(TrainImgLoader))
+                message += ', average testing EPE loss = %.3f' % (total_test_loss / len(TestImgLoader))
+                print(message)
                 # print('epoch %d total 3-px error in val = %.3f' %
                 #       (epoch, total_test_three_pixel_error_rate /len(TestImgLoader) *100))
 
@@ -270,15 +291,13 @@ class Wrapper():
                 # if acc > max_acc:
                 # max_acc = acc
                 # max_epo = epoch
-                savefilename = root_path + '/checkpoints/checkpoint_finetune_kitti15.tar'
-                torch.save({
-                    'state_dict': self.model.state_dict(),
-                    'total_train_loss': total_train_loss,
-                    'epoch': epoch + 1,
-                    'optimizer_state_dict': self.optimizer.state_dict(),
-                    # 'max_acc': max_acc,
-                    # 'max_epoch': max_epo
-                }, savefilename)
+                if epoch % args.save_step == 0:
+                    savefilename = os.path.join(save_model_path, 'checkpoints', 'checkpoint_{}.tar'.format(epoch))
+                    self.save_model(epoch, total_train_loss, max_acc , max_epo, savefilename)
+
+
+                file_latest = os.path.join(save_model_path, 'checkpoints', 'latest.tar')
+                self.save_model(epoch, total_train_loss, max_acc, max_epo, file_latest)
                 # print("-- max acc checkpoint saved --")
                 # print('MAX epoch %d test 3 pixel correct rate = %.3f' %
                 # (max_epo, max_acc))
@@ -286,11 +305,7 @@ class Wrapper():
             print('full finetune time = %.2f HR' %
                   ((time.time() - start_full_time) /3600))
 
-        total_test_loss = 0
-        for batch_idx, (imgL, imgR, dispL, dispR) in enumerate(TestImgLoader):
-            loss = self.test(imgL, imgR, dispL, dispR)
-            total_test_loss += loss
-        print('Test loss %d' % total_test_loss / len(TestImgLoader))
+
 
 
 if __name__ == '__main__':
@@ -300,6 +315,11 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', dest='batch_size', action='store', type=int, default=1)
     parser.add_argument('--start-at', dest='start_at', action='store', default=-1, type=int)
     parser.add_argument('--test-only', dest='test_only', action='store_true')
+    parser.add_argument('--data_path', default='/datasets/data_scene_flow/training/',
+                        help='data_path')
+    parser.add_argument('--load_model', default='/checkpoints/checkpoint_sceneflow.tar', help='load model')
+    parser.add_argument('--save_model', default="/checkpoints",
+                        help='save model')
     args = parser.parse_args()
     a = Wrapper()
-    a.main(args.batch_size, args.epochs, args.checkpoint_name, args.start_at, args.test_only)
+    a.main(args.batch_size, args.epochs, args.checkpoint_name, args.start_at, args.test_only, args.data_path, args.load_model, args.save_model)

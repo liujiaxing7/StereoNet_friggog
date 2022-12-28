@@ -31,8 +31,8 @@ def apply_disparity(input_images, x_offset, wrap_mode='border', tensor_type='tor
     x = x + edge_size
     y = y + edge_size
     # Flatten and repeat for each image in the batch
-    x = x.view(-1).repeat(1, num_batch)
-    y = y.view(-1).repeat(1, num_batch)
+    x = x.contiguous().view(-1).repeat(1, num_batch)
+    y = y.contiguous().view(-1).repeat(1, num_batch)
 
     # Now we want to sample pixels with indicies shifted by disparity in X direction
     # For that we convert disparity from % to pixels and add to X indicies

@@ -166,10 +166,16 @@ class KittiImageLoader(BaseImageLoader):
             dataR = self.dploader(disp_R)
 
         if self.training:
-            th, tw = 368, 1232
+            th, tw = 368, 1224
 
-            x1 = random.randint(0, w - tw)
-            y1 = random.randint(0, h - th)
+            try:
+                x1 = random.randint(0, w - tw)
+                y1 = random.randint(0, h - th)
+            except:
+                print("left:", left)
+                print("w:", w)
+                print("tw:", tw)
+                exit(-1)
 
             left_img = left_img.crop((x1, y1, x1 + tw, y1 + th))
             right_img = right_img.crop((x1, y1, x1 + tw, y1 + th))
