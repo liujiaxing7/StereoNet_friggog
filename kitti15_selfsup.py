@@ -192,7 +192,7 @@ class Wrapper():
             'max_epoch': max_epo
         }, file)
 
-    def main(self, batch_size, epochs, checkpoint_name, start_at, test_only, data_path, load_model_path, save_model_path):
+    def main(self, batch_size, epochs, checkpoint_name, start_at, test_only, data_path, load_model_path, save_model_path, save_step):
         root_path = "D:/StereoNet"
 
         torch.manual_seed(0)
@@ -291,7 +291,7 @@ class Wrapper():
                 # if acc > max_acc:
                 # max_acc = acc
                 # max_epo = epoch
-                if epoch % args.save_step == 0:
+                if epoch % save_step == 0:
                     savefilename = os.path.join(save_model_path, 'checkpoints', 'checkpoint_{}.tar'.format(epoch))
                     self.save_model(epoch, total_train_loss, max_acc , max_epo, savefilename)
 
@@ -315,6 +315,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', dest='batch_size', action='store', type=int, default=1)
     parser.add_argument('--start-at', dest='start_at', action='store', default=-1, type=int)
     parser.add_argument('--test-only', dest='test_only', action='store_true')
+    parser.add_argument('--save_step', type=int, default=10,
+                        help='number of epochs to save model')
     parser.add_argument('--data_path', default='/datasets/data_scene_flow/training/',
                         help='data_path')
     parser.add_argument('--load_model', default='/checkpoints/checkpoint_sceneflow.tar', help='load model')
@@ -322,4 +324,4 @@ if __name__ == '__main__':
                         help='save model')
     args = parser.parse_args()
     a = Wrapper()
-    a.main(args.batch_size, args.epochs, args.checkpoint_name, args.start_at, args.test_only, args.data_path, args.load_model, args.save_model)
+    a.main(args.batch_size, args.epochs, args.checkpoint_name, args.start_at, args.test_only, args.data_path, args.load_model, args.save_model, args.save_step)
