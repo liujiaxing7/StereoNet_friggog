@@ -201,15 +201,15 @@ class KittiImageLoader(BaseImageLoader):
                 transforms.Normalize(BASE_NORM_STATS['mean'], BASE_NORM_STATS['std'])
             ])
         else:
-            left_img = left_img.crop((w -1232, h -368, w, h))
-            right_img = right_img.crop((w -1232, h -368, w, h))
+            left_img = left_img.crop((w -1224, h -368, w, h))
+            right_img = right_img.crop((w -1224, h -368, w, h))
 
             # dataL = dataL.crop((w -1232, h -368, w, h))
             # dataL = np.ascontiguousarray(dataL, dtype=np.float32)
-            dataL = dataL[:, h -368:h, w -1232:w]
+            dataL = dataL[:, h -368:h, w -1224:w]
             # # dataR = dataR.crop((w -1232, h -368, w, h))
             # dataR = np.ascontiguousarray(dataR, dtype=np.float32)
-            dataR = dataR[:, h -368:h, w -1232:w]
+            dataR = dataR[:, h -368:h, w -1224:w]
 
             t = transforms.Compose([
                 transforms.ToTensor(),
